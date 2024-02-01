@@ -3,7 +3,6 @@ import os
 import logging
 import time
 import discord
-import ServerManager
 from wakeonlan import send_magic_packet
 from dotenv import load_dotenv
 
@@ -34,10 +33,6 @@ def get_client() -> docker.DockerClient: #WARN: can raise ConnectionError
         logging.debug("docker client connected.")
         return client
 
-def strip_id(containerlist):
-    for c in containerlist:
-        c.removeprefix("<Container: ")
-        c.removesuffix(">")
 def reload_containers(): #WARN: can throw ConnectionError
     ret = []
     client = get_client()
@@ -45,9 +40,23 @@ def reload_containers(): #WARN: can throw ConnectionError
     for i in list:
         ret.append(i.name)
     return ret
+
+
         
 CONTAINERS = reload_containers()
 bot = discord.Bot()
+
+async def update_status() -> None:
+    presence = []
+    try:
+        client = get_client()
+        containertlist = client.containers.list
+        for i in containertlist:
+            if i.status == "running":
+                presence.append(i.name)
+    except ConnectionError:
+        pass
+    await bot.change_presence(activity=discord.Game(name=str(presence)))
 
 #Bot command Def------------------
 @bot.command(description="starts a server")
@@ -58,6 +67,7 @@ async def start(ctx, server: discord.Option(str, choices=CONTAINERS)):
         client.containers.get(server).start()
     except ConnectionError:
         response = "could not wake main server. Please try again later"
+    await update_status()
     await ctx.respond(response, ephemeral=True)
 
 @bot.command(description="starts a server")
@@ -68,4 +78,5 @@ async def stop(ctx, server: discord.Option(str, choices=CONTAINERS)):
         client.containers.get(server).stop()
     except ConnectionError:
         response = "could not wake main server. Please try again later"
+    await update_status()
     await ctx.respond(response, ephemeral=True)
