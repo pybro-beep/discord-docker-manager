@@ -43,7 +43,7 @@ def suspend_server():
     i = 0
     while i < TIMEOUT:
         try:
-            SSH.connect(hostname="jeremy", username="fabian", pkey=KEY_PATH)
+            SSH.connect(hostname=HOSTNAME, username=USERNAME, pkey=KEY_PATH)
             SSH.exec_command("systemctl suspend")
             i = TIMEOUT
         except:
