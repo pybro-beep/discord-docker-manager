@@ -20,15 +20,7 @@ logging.basicConfig(filename="Bot.log",
 #Default values-------------------
 SSH = paramiko.SSHClient()
 SSH.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-SERVER_MAC_ADDRESS = "00:80:41:ae:fd:7e"
-TOKEN = "123456789101112131415161718192021222324252627282930"
-HOSTNAME = "localhost"
-DOCKER_PORT = "2375"
-KEY_PATH = "~/.ssh/id_rsa"
-USERNAME = "User"
-WHITELIST_PATH = "whitelist.txt"
 WHITELIST = []
-TIMEOUT = 6
 
 #override default ---------------
 
