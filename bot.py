@@ -7,30 +7,67 @@ import paramiko
 from wakeonlan import send_magic_packet
 from dotenv import load_dotenv
 
-#Setup----------------------------
-logging.basicConfig(filename="Bot.log")
-SSH = paramiko.SSHClient()
-load_dotenv()
-SERVER_MAC_ADDRESS = os.getenv('SERVER_MAC_ADDRESS')
-TOKEN = os.getenv('DISCORD_TOKEN')
-HOSTNAME = os.getenv('HOSTNAME')
-KEY_PATH = os.getenv('KEY_PATH')
-USERNAME = os.getenv('USERNAME')
+#TODO: make a docker whitelist to avoid exposing unwanted dockers to bot commands
+#TODO: make a Thread to run update_status() every x seconds as long as the pc is reachable via ping -> allows auto shutdown on server side if available
 
-TIMEOUT = 15
+#Setup----------------------------
+logging.basicConfig(filename="Bot.log",
+                    encoding="utf-8",
+                    level=logging.INFO,
+                    format="%(asctime)s %(levelname)s %(message)s",
+                    datefmt='%y-%m-%d %H:%M:%S'
+)
+#Default values-------------------
+SSH = paramiko.SSHClient()
+SSH.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+SERVER_MAC_ADDRESS = "00:80:41:ae:fd:7e"
+TOKEN = "123456789101112131415161718192021222324252627282930"
+HOSTNAME = "localhost"
+DOCKER_PORT = "2375"
+KEY_PATH = "~/.ssh/id_rsa"
+USERNAME = "User"
+WHITELIST_PATH = "whitelist.txt"
+WHITELIST = []
+TIMEOUT = 6
+
+#override default ---------------
+
+def load_config():
+    global SERVER_MAC_ADDRESS, TOKEN, HOSTNAME, DOCKER_PORT, KEY_PATH, USERNAME, WHITELIST_PATH, WHITELIST, TIMEOUT
+    logging.INFO("Loading Config")
+    load_dotenv()
+    SERVER_MAC_ADDRESS = os.getenv('SERVER_MAC_ADDRESS', "00:80:41:ae:fd:7e")
+    TOKEN = os.getenv('DISCORD_TOKEN', "123456789101112131415161718192021222324252627282930")
+    HOSTNAME = os.getenv('HOSTNAME', "localhost")
+    DOCKER_PORT = os.getenv('DOCKER_PORT', "2375")
+    KEY_PATH = os.getenv('KEY_PATH', "~/.ssh/id_rsa")
+    USERNAME = os.getenv('USERNAME', "User")
+    WHITELIST_PATH = os.getenv('WHITELIST_PATH', "whitelist.txt")
+    TIMEOUT = os.getenv('TIMEOUT', 6)
+    try:
+        with open(WHITELIST) as file:
+            WHITELIST = file.readlines()
+    except IOError:
+        logging.WARNING("failed to read whitelist")
+    if "*" in WHITELIST:
+        logging.WARNING("The * operator was used in the Whitelist. All dockers will be exposed!")
+        WHITELIST = ["*"]
+load_config()
+                
+
 def get_client() -> docker.DockerClient: #WARN: can raise ConnectionError
     try:
-        client = docker.DockerClient(base_url="tcp://192.168.178.32:2375", use_ssh_client=False)
+        client = docker.DockerClient(base_url=f"tcp://{HOSTNAME}:{DOCKER_PORT}", use_ssh_client=False)
     except docker.errors.DockerException as e:
-        i = 0
+        i = 1
         while i < TIMEOUT:
             send_magic_packet(SERVER_MAC_ADDRESS)
             try:
-                client = docker.DockerClient(base_url="tcp://192.168.178.32:2375", use_ssh_client=False)
+                client = docker.DockerClient(base_url=f"tcp://{HOSTNAME}:{DOCKER_PORT}", use_ssh_client=False)
             except docker.errors.DockerException:
                 logging.debug("connetion attempt" + str(i) + " failed.")
                 i = i + 1
-                time.sleep(2)
+                time.sleep(5) #wakeup can take a while especially if wireless connection is used
                 continue
             i = TIMEOUT
         if client == None:
@@ -40,33 +77,37 @@ def get_client() -> docker.DockerClient: #WARN: can raise ConnectionError
     return client
 
 def suspend_server():
-    i = 0
+    i = 1
     while i < TIMEOUT:
         try:
-            SSH.connect(hostname=HOSTNAME, username=USERNAME, pkey=KEY_PATH)
-            SSH.exec_command("systemctl suspend")
+            SSH.connect(hostname=HOSTNAME, username=USERNAME, key_filename=KEY_PATH)
+            stdin_, stdout_, stderr_ = SSH.exec_command("systemctl suspend")
             i = TIMEOUT
-        except:
-            logging.info("Failed to suspend server on attempt " + str(i) + " of " + str(TIMEOUT))
+            logging.info("systemctl suspend was executed")
+        except paramiko.ssh_exception.SSHException as e:
+            logging.info("Failed to suspend server on attempt " + str(i) + " of " + str(TIMEOUT - 1))
+            logging.info(e)
             i = i + 1
-
-def is_up():
-    i = 0
-    while i < TIMEOUT:
-        try:
-            SSH.connect(hostname=HOSTNAME, username=USERNAME, pkey=KEY_PATH)
-            if SSH.get_transport() is not None:
-                return SSH.get_transport().is_active()
-        except:
-            i = i + 1
-    return False
+            time.sleep(2)
+            if SSH:
+                SSH.close()
+    if SSH:
+        SSH.close()
 
 def reload_containers() -> list: #WARN: can raise ConnectionError
     ret = []
     client = get_client()
     containers = client.containers.list("all")
+    load_all = WHITELIST[0] == "*"
     for i in containers:
-        ret.append(i.name)
+        if load_all:
+            ret.append(i.name)
+            continue
+
+        if i.name in WHITELIST:
+            ret.append(i.name)
+        else:
+            logging.INFO(f"{i.name} is not in {WHITELIST_PATH}. ignoring")
     return ret
 
 
@@ -84,14 +125,14 @@ async def update_status() -> None:
                 presence.append(i.name)
     except ConnectionError:
         pass
-    if len(presence) == 0 and is_up():
+    if len(presence) == 0:
         suspend_server()
     await bot.change_presence(activity=discord.Game(name=str(presence)))
 
 #Bot command Def------------------
 @bot.command(description="starts a server")
 async def start(ctx, server: discord.Option(str, choices=CONTAINERS)):
-    logging.info(f"[{server}] {time.localtime()} {ctx.author} used the start command\n")
+    logging.info(f"[{server}] {ctx.author} used the start command\n")
     await ctx.response.defer(ephemeral=True)
     try:
         client = get_client()
@@ -104,7 +145,7 @@ async def start(ctx, server: discord.Option(str, choices=CONTAINERS)):
 
 @bot.command(description="stops a server")
 async def stop(ctx, server: discord.Option(str, choices=CONTAINERS)):
-    logging.info(f"[{server}] {time.localtime()} {ctx.author} used the stop command\n")
+    logging.info(f"[{server}] {ctx.author} used the stop command\n")
     await ctx.response.defer(ephemeral=True)
     try:
         client = get_client()
@@ -117,8 +158,7 @@ async def stop(ctx, server: discord.Option(str, choices=CONTAINERS)):
 
 
 #MAIN----------------------
-async def main():
-    await update_status()
+def main():
     bot.run(TOKEN)
 if __name__ == "__main__":
     main()
