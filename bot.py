@@ -15,7 +15,7 @@ logging.basicConfig(filename="Bot.log",
                     encoding="utf-8",
                     level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(message)s",
-                    datefmt='%y-%m-%d %H:%M:%S'
+                    datefmt='%d-%m-%y %H:%M:%S'
 )
 #Default values-------------------
 SSH = paramiko.SSHClient()
@@ -26,7 +26,7 @@ WHITELIST = []
 
 def load_config():
     global SERVER_MAC_ADDRESS, TOKEN, HOSTNAME, DOCKER_PORT, KEY_PATH, USERNAME, WHITELIST_PATH, WHITELIST, TIMEOUT
-    logging.INFO("Loading Config")
+    logging.info("Loading Config")
     load_dotenv()
     SERVER_MAC_ADDRESS = os.getenv('SERVER_MAC_ADDRESS', "00:80:41:ae:fd:7e")
     TOKEN = os.getenv('DISCORD_TOKEN', "123456789101112131415161718192021222324252627282930")
@@ -37,13 +37,15 @@ def load_config():
     WHITELIST_PATH = os.getenv('WHITELIST_PATH', "whitelist.txt")
     TIMEOUT = os.getenv('TIMEOUT', 6)
     try:
-        with open(WHITELIST) as file:
+        with open(WHITELIST_PATH) as file:
             WHITELIST = file.readlines()
+            WHITELIST = list(map(lambda i: i.rstrip(), WHITELIST))
     except IOError:
-        logging.WARNING("failed to read whitelist")
+        logging.warning("failed to read whitelist")
     if "*" in WHITELIST:
-        logging.WARNING("The * operator was used in the Whitelist. All dockers will be exposed!")
+        logging.warning("The * operator was used in the Whitelist. All dockers will be exposed!")
         WHITELIST = ["*"]
+    logging.info("loaded Whitelist: " + str(WHITELIST))
 load_config()
                 
 
@@ -90,7 +92,7 @@ def reload_containers() -> list: #WARN: can raise ConnectionError
     ret = []
     client = get_client()
     containers = client.containers.list("all")
-    load_all = WHITELIST[0] == "*"
+    load_all = "*" in WHITELIST
     for i in containers:
         if load_all:
             ret.append(i.name)
@@ -99,7 +101,7 @@ def reload_containers() -> list: #WARN: can raise ConnectionError
         if i.name in WHITELIST:
             ret.append(i.name)
         else:
-            logging.INFO(f"{i.name} is not in {WHITELIST_PATH}. ignoring")
+            logging.info(f"{i.name} is not in {WHITELIST_PATH}. ignoring")
     return ret
 
 
@@ -123,8 +125,8 @@ async def update_status() -> None:
 
 #Bot command Def------------------
 @bot.command(description="starts a server")
-async def start(ctx, server: discord.Option(str, choices=CONTAINERS)):
-    logging.info(f"[{server}] {ctx.author} used the start command\n")
+async def start(ctx, server: discord.Option(str, choices=CONTAINERS)): # type: ignore
+    logging.info(f"[{server}] {ctx.author} used the start command")
     await ctx.response.defer(ephemeral=True)
     try:
         client = get_client()
@@ -132,12 +134,16 @@ async def start(ctx, server: discord.Option(str, choices=CONTAINERS)):
         response = "starting server."
     except ConnectionError:
         response = "could not wake main server. Please try again later"
+
+    global CONTAINERS
+    CONTAINERS = reload_containers()
+    logging.info(f"loaded containers: {CONTAINERS}")
     await update_status()
     await ctx.followup.send(response, ephemeral=True)
 
 @bot.command(description="stops a server")
-async def stop(ctx, server: discord.Option(str, choices=CONTAINERS)):
-    logging.info(f"[{server}] {ctx.author} used the stop command\n")
+async def stop(ctx, server: discord.Option(str, choices=CONTAINERS)): # type: ignore
+    logging.info(f"[{server}] {ctx.author} used the stop command")
     await ctx.response.defer(ephemeral=True)
     try:
         client = get_client()
@@ -145,6 +151,10 @@ async def stop(ctx, server: discord.Option(str, choices=CONTAINERS)):
         response = "stopping server."
     except ConnectionError:
         response = "could not wake main server. Please try again later"
+
+    global CONTAINERS
+    CONTAINERS = reload_containers()
+    logging.info(f"loaded containers: {CONTAINERS}")
     await update_status()
     await ctx.followup.send(response, ephemeral=True)
 
