@@ -70,6 +70,12 @@ def get_client() -> docker.DockerClient: #WARN: can raise ConnectionError
         logging.debug("docker client connected.")
     return client
 
+def is_up() -> bool:
+    #TODO: make is_up() using a subprocess.call(["ping", "-c", "1", HOSTNAME])
+    #TODO: after make a thread which updates docker when is_up() is true. maybe also reload config and such.
+    #on linux ping -c 1 returns non 0 exitcode when no answer -> can be used for is_up() unlike on windows
+    pass
+
 def suspend_server():
     i = 1
     while i < TIMEOUT:
