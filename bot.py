@@ -13,12 +13,16 @@ from dotenv import load_dotenv
 #TODO: make a Thread to run update_status() every x seconds as long as the pc is reachable via ping -> allows auto shutdown on server side if available
 
 #Setup----------------------------
-logging.basicConfig(filename="Bot.log",
+logging.basicConfig(filename="bot.log",
                     encoding="utf-8",
                     level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(message)s",
                     datefmt='%d-%m-%y %H:%M:%S'
 )
+
+#move discord log into different file (spams socket reconnections etc. on long runtime)
+logging.getLogger('discord').addHandler(logging.FileHandler(filename='discord.log', encoding='utf-8', mode='w'))
+
 #Default values-------------------
 SSH = paramiko.SSHClient()
 SSH.set_missing_host_key_policy(paramiko.AutoAddPolicy())
