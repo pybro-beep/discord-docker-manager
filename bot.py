@@ -4,6 +4,8 @@ import logging
 import time
 import discord
 import paramiko
+import subprocess
+from threading import Thread
 from wakeonlan import send_magic_packet
 from dotenv import load_dotenv
 
@@ -70,11 +72,10 @@ def get_client() -> docker.DockerClient: #WARN: can raise ConnectionError
         logging.debug("docker client connected.")
     return client
 
-def is_up() -> bool:
+def is_up() -> bool: #WARN: linux specific code!
     #TODO: make is_up() using a subprocess.call(["ping", "-c", "1", HOSTNAME])
-    #TODO: after make a thread which updates docker when is_up() is true. maybe also reload config and such.
-    #on linux ping -c 1 returns non 0 exitcode when no answer -> can be used for is_up() unlike on windows
-    pass
+    ping = subprocess.run(['ping', '-c', '1', HOSTNAME])
+    return ping.returncode == 0
 
 def suspend_server():
     i = 1
@@ -164,9 +165,31 @@ async def stop(ctx, server: discord.Option(str, choices=CONTAINERS)): # type: ig
     await update_status()
     await ctx.followup.send(response, ephemeral=True)
 
+def threadcheck():
+    while True:
+        time.sleep(300) #5 minute sleep
+        if is_up():
+            running = []
+            try:
+                client = get_client()
+                containertlist = client.containers.list()
+                for i in containertlist:
+                    if i.status == "running":
+                        running.append(i.name)
+            except ConnectionError:
+                pass
+            if len(running) == 0:
+                suspend_server()
+            else:
+                logging.info(f"running containers: {running}")
+
+            
+
 
 #MAIN----------------------
 def main():
+    t = Thread(target=threadcheck)
+    t.start()
     bot.run(TOKEN)
 if __name__ == "__main__":
     main()
