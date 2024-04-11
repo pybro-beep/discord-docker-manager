@@ -74,7 +74,7 @@ def get_client() -> docker.DockerClient: #WARN: can raise ConnectionError
 
 def is_up() -> bool: #WARN: linux specific code!
     #TODO: make is_up() using a subprocess.call(["ping", "-c", "1", HOSTNAME])
-    ping = subprocess.run(['ping', '-c', '1', HOSTNAME])
+    ping = subprocess.run(['ping', '-c', '1', HOSTNAME], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return ping.returncode == 0
 
 def suspend_server():
@@ -128,6 +128,8 @@ async def update_status() -> None:
         pass
     if len(presence) == 0:
         suspend_server()
+        await bot.change_presence(activity=None)
+        return
     await bot.change_presence(activity=discord.Game(name=str(presence)))
 
 #Bot command Def------------------
@@ -167,7 +169,7 @@ async def stop(ctx, server: discord.Option(str, choices=CONTAINERS)): # type: ig
 
 def threadcheck():
     while True:
-        time.sleep(300) #5 minute sleep
+        time.sleep(120) #2 minute sleep
         if is_up():
             running = []
             try:
