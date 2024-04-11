@@ -73,7 +73,6 @@ def get_client() -> docker.DockerClient: #WARN: can raise ConnectionError
     return client
 
 def is_up() -> bool: #WARN: linux specific code!
-    #TODO: make is_up() using a subprocess.call(["ping", "-c", "1", HOSTNAME])
     ping = subprocess.run(['ping', '-c', '1', HOSTNAME], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return ping.returncode == 0
 
