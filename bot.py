@@ -91,12 +91,12 @@ def suspend_server():
         except paramiko.ssh_exception.SSHException as e:
             logging.info("Failed to suspend server on attempt " + str(i) + " of " + str(TIMEOUT - 1))
             logging.info(e)
+            SSH.close()
             i = i + 1
             time.sleep(2)
-            if SSH:
-                SSH.close()
-    if SSH:
-        SSH.close()
+    if i == TIMEOUT - 1:
+        logging.error(f"failed to suspend server after {TIMEOUT} tries")
+    SSH.close()
 
 def reload_containers() -> list: #WARN: can raise ConnectionError
     ret = []
