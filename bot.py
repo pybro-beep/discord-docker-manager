@@ -52,26 +52,24 @@ def load_config():
     logging.info("loaded Whitelist: " + str(WHITELIST))
 load_config()
                 
+def wake_server(mac=SERVER_MAC_ADDRESS) -> bool:
+    i: int = 1
+    while i < TIMEOUT and not is_up():
+        logging.debug(f"wake attempt {i} on {mac}")
+        send_magic_packet(mac)
+        time.sleep(2)
+        i += 1
+    return is_up()
 
 def get_client() -> docker.DockerClient: #WARN: can raise ConnectionError
-    try:
+    if is_up():
         client = docker.DockerClient(base_url=f"tcp://{HOSTNAME}:{DOCKER_PORT}", use_ssh_client=False)
-    except docker.errors.DockerException as e:
-        i: int = 1
-        while i < TIMEOUT:
-            send_magic_packet(SERVER_MAC_ADDRESS)
-            try:
-                client = docker.DockerClient(base_url=f"tcp://{HOSTNAME}:{DOCKER_PORT}", use_ssh_client=False)
-            except docker.errors.DockerException:
-                logging.debug("connetion attempt" + str(i) + " failed.")
-                i = i + 1
-                time.sleep(5) #wakeup can take a while especially if wireless connection is used
-                continue
-            i = TIMEOUT
-        if client == None:
-            logging.error("could wake up server within timeout.")
-            raise ConnectionError
-        logging.debug("docker client connected.")
+    elif wake_server():
+        client = docker.DockerClient(base_url=f"tcp://{HOSTNAME}:{DOCKER_PORT}", use_ssh_client=False)
+    else:
+        logging.error("could not wake server within timeout.")
+        raise ConnectionError
+    logging.debug("docker client connected.")
     return client
 
 def is_up() -> bool: #WARN: linux specific code! -> Windows implementation of ping is different!
