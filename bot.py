@@ -175,25 +175,6 @@ async def stop(ctx, server: discord.Option(str, choices=CONTAINERS)): # type: ig
     # await update_status()
     await ctx.followup.send(response, ephemeral=True)
 
-def threadcheck():
-    while True:
-        time.sleep(120) #2 minute sleep
-        if is_up():
-            running = []
-            try:
-                client = get_client()
-                containertlist = client.containers.list()
-                for i in containertlist:
-                    if i.status == "running":
-                        running.append(i.name)
-            except ConnectionError:
-                pass
-            if len(running) == 0:
-                suspend_server()
-            else:
-                logging.info(f"[threadcheck]: {running}")
-
-
 
 #MAIN----------------------
 def main():
