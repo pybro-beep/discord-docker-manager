@@ -10,17 +10,15 @@ from threading import Thread
 from wakeonlan import send_magic_packet
 from dotenv import load_dotenv
 
-
+#TODO: use RotatingFileHandler
 #Setup----------------------------
-logging.basicConfig(filename="bot.log",
+logging.basicConfig(filename="log/bot.log",
                     encoding="utf-8",
                     level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(message)s",
                     datefmt='%d-%m-%y %H:%M:%S'
 )
 
-#move discord log into different file (spams socket reconnections etc. on long runtime)
-logging.getLogger('discord').addHandler(logging.FileHandler(filename='discord.log', encoding='utf-8', mode='w'))
 
 #Default values-------------------
 SSH = paramiko.SSHClient()
@@ -118,9 +116,13 @@ def reload_containers() -> list: #WARN: can raise ConnectionError
         
 CONTAINERS = reload_containers()
 bot = discord.Bot()
+
 class UCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.update_status.start()
+    def cog_unload(self):
+        self.update_status.cancel()
     @tasks.loop(minutes=1)
     async def update_status(self) -> None:
         if is_up():
@@ -137,7 +139,7 @@ class UCog(commands.Cog):
                 suspend_server()
                 await self.bot.change_presence(activity=None)
                 return
-            logging.info(f"[update]: {presence}")
+            logging.debug(f"[update]: {presence}")
             await self.bot.change_presence(activity=discord.Game(name=str(presence)))
 
 #Bot command Def------------------
@@ -174,11 +176,13 @@ async def stop(ctx, server: discord.Option(str, choices=CONTAINERS)): # type: ig
     logging.info(f"loaded containers: {CONTAINERS}")
     # await update_status()
     await ctx.followup.send(response, ephemeral=True)
-
+@bot.event
+async def on_ready():
+    bot.add_cog(UCog(bot))
 
 #MAIN----------------------
 def main():
-    bot.add_cog(UCog(bot))
+    # bot.add_cog(UCog(bot))
     bot.run(TOKEN)
 if __name__ == "__main__":
     main()
