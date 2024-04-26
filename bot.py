@@ -9,8 +9,6 @@ from threading import Thread
 from wakeonlan import send_magic_packet
 from dotenv import load_dotenv
 
-#TODO: make a docker whitelist to avoid exposing unwanted dockers to bot commands
-#TODO: make a Thread to run update_status() every x seconds as long as the pc is reachable via ping -> allows auto shutdown on server side if available
 
 #Setup----------------------------
 logging.basicConfig(filename="bot.log",
@@ -41,11 +39,11 @@ def load_config():
     KEY_PATH = os.getenv('KEY_PATH', "~/.ssh/id_rsa")
     USERNAME = os.getenv('USERNAME', "User")
     WHITELIST_PATH = os.getenv('WHITELIST_PATH', "whitelist.txt")
-    TIMEOUT = os.getenv('TIMEOUT', 6)
+    TIMEOUT: int = int(os.getenv('TIMEOUT', 6))
     try:
         with open(WHITELIST_PATH) as file:
             WHITELIST = file.readlines()
-            WHITELIST = list(map(lambda i: i.rstrip(), WHITELIST))
+            WHITELIST = list(map(lambda i: i.rstrip(), WHITELIST)) #strip whitespaces, otherwise whitelist won't accept docker names in filter
     except IOError:
         logging.warning("failed to read whitelist")
     if "*" in WHITELIST:
@@ -59,7 +57,7 @@ def get_client() -> docker.DockerClient: #WARN: can raise ConnectionError
     try:
         client = docker.DockerClient(base_url=f"tcp://{HOSTNAME}:{DOCKER_PORT}", use_ssh_client=False)
     except docker.errors.DockerException as e:
-        i = 1
+        i: int = 1
         while i < TIMEOUT:
             send_magic_packet(SERVER_MAC_ADDRESS)
             try:
@@ -76,7 +74,7 @@ def get_client() -> docker.DockerClient: #WARN: can raise ConnectionError
         logging.debug("docker client connected.")
     return client
 
-def is_up() -> bool: #WARN: linux specific code!
+def is_up() -> bool: #WARN: linux specific code! -> Windows implementation of ping is different!
     ping = subprocess.run(['ping', '-c', '1', HOSTNAME], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return ping.returncode == 0
 
@@ -84,8 +82,8 @@ def suspend_server():
     i = 1
     while i < TIMEOUT:
         try:
-            SSH.connect(hostname=HOSTNAME, username=USERNAME, key_filename=KEY_PATH)
-            stdin_, stdout_, stderr_ = SSH.exec_command("systemctl suspend")
+            SSH.connect(hostname=HOSTNAME, username=USERNAME, key_filename=KEY_PATH) #bot currently only supports keyauth. keyauth with password on id_rsa file not supported either.
+            _stdin, _stdout, _stderr = SSH.exec_command("systemctl suspend")
             i = TIMEOUT
             logging.info("systemctl suspend was executed")
         except paramiko.ssh_exception.SSHException as e:
@@ -186,9 +184,8 @@ def threadcheck():
             if len(running) == 0:
                 suspend_server()
             else:
-                logging.info(f"running containers: {running}")
+                logging.info(f"[threadcheck]: {running}")
 
-            
 
 
 #MAIN----------------------
