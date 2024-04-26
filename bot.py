@@ -3,6 +3,7 @@ import os
 import logging
 import time
 import discord
+from discord.ext import tasks, commands
 import paramiko
 import subprocess
 from threading import Thread
@@ -117,22 +118,27 @@ def reload_containers() -> list: #WARN: can raise ConnectionError
         
 CONTAINERS = reload_containers()
 bot = discord.Bot()
-
-async def update_status() -> None:
-    presence = []
-    try:
-        client = get_client()
-        containertlist = client.containers.list()
-        for i in containertlist:
-            if i.status == "running":
-                presence.append(i.name)
-    except ConnectionError:
-        pass
-    if len(presence) == 0:
-        suspend_server()
-        await bot.change_presence(activity=None)
-        return
-    await bot.change_presence(activity=discord.Game(name=str(presence)))
+class UCog(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+    @tasks.loop(minutes=1)
+    async def update_status(self) -> None:
+        if is_up():
+            presence = []
+            try:
+                client = get_client()
+                containertlist = client.containers.list()
+                for i in containertlist:
+                    if i.status == "running":
+                        presence.append(i.name)
+            except ConnectionError:
+                pass
+            if len(presence) == 0:
+                suspend_server()
+                await self.bot.change_presence(activity=None)
+                return
+            logging.info(f"[update]: {presence}")
+            await self.bot.change_presence(activity=discord.Game(name=str(presence)))
 
 #Bot command Def------------------
 @bot.command(description="starts a server")
@@ -149,7 +155,7 @@ async def start(ctx, server: discord.Option(str, choices=CONTAINERS)): # type: i
     global CONTAINERS
     CONTAINERS = reload_containers()
     logging.info(f"loaded containers: {CONTAINERS}")
-    await update_status()
+    # await update_status()
     await ctx.followup.send(response, ephemeral=True)
 
 @bot.command(description="stops a server")
@@ -166,7 +172,7 @@ async def stop(ctx, server: discord.Option(str, choices=CONTAINERS)): # type: ig
     global CONTAINERS
     CONTAINERS = reload_containers()
     logging.info(f"loaded containers: {CONTAINERS}")
-    await update_status()
+    # await update_status()
     await ctx.followup.send(response, ephemeral=True)
 
 def threadcheck():
@@ -191,9 +197,7 @@ def threadcheck():
 
 #MAIN----------------------
 def main():
-    t = Thread(target=threadcheck)
-    t.setDaemon(True) #the threadcheck thread will now end with the main thread. Stops t from continuing on KeyboardInterrupt
-    t.start()
+    bot.add_cog(UCog(bot))
     bot.run(TOKEN)
 if __name__ == "__main__":
     main()
