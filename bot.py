@@ -25,6 +25,7 @@ logging.getLogger('discord').addHandler(logging.FileHandler(filename='discord.lo
 SSH = paramiko.SSHClient()
 SSH.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 WHITELIST = []
+TIMEOUT: int = 6 #Type annotations have to be made in the scope that owns the variable. -> load_config may not add type to TIMEOUT
 
 #override default ---------------
 
@@ -39,7 +40,7 @@ def load_config():
     KEY_PATH = os.getenv('KEY_PATH', "~/.ssh/id_rsa")
     USERNAME = os.getenv('USERNAME', "User")
     WHITELIST_PATH = os.getenv('WHITELIST_PATH', "whitelist.txt")
-    TIMEOUT: int = int(os.getenv('TIMEOUT', 6))
+    TIMEOUT = int(os.getenv('TIMEOUT', 6))
     try:
         with open(WHITELIST_PATH) as file:
             WHITELIST = file.readlines()
@@ -191,6 +192,7 @@ def threadcheck():
 #MAIN----------------------
 def main():
     t = Thread(target=threadcheck)
+    t.setDaemon(True) #the threadcheck thread will now end with the main thread. Stops t from continuing on KeyboardInterrupt
     t.start()
     bot.run(TOKEN)
 if __name__ == "__main__":
