@@ -148,7 +148,6 @@ async def start(ctx, server: discord.Option(str, choices=CONTAINERS)): # type: i
     except ConnectionError:
         response = "could not wake main server. Please try again later"
 
-    # await update_status()
     await ctx.followup.send(response, ephemeral=True)
 
 @bot.command(description="stops a server")
@@ -162,7 +161,6 @@ async def stop(ctx, server: discord.Option(str, choices=CONTAINERS)): # type: ig
     except ConnectionError:
         response = "could not wake main server. Please try again later"
 
-    # await update_status()
     await ctx.followup.send(response, ephemeral=True)
 @bot.event
 async def on_ready():
@@ -170,7 +168,6 @@ async def on_ready():
 
 #MAIN----------------------
 def main():
-    # bot.add_cog(UCog(bot))
     bot.run(TOKEN)
 if __name__ == "__main__":
     main()
