@@ -98,20 +98,9 @@ def in_whitelist(name: str) -> bool:
     if ("*" in WHITELIST): #possibly remove this check, because this turns whitelist into blacklist. blacklist is easier to accidentally expose containers with.
         return True
     return (name in WHITELIST)
-def reload_containers() -> list: #WARN: can raise ConnectionError
-    ret = []
-    client = get_client()
-    containers = client.containers.list("all")
-    for i in containers:
-        if in_whitelist(i.name):
-            ret.append(i.name)
-        else:
-            logging.info(f"{i.name} is not in {WHITELIST_PATH}. ignoring")
-    return ret
 
 
         
-CONTAINERS = reload_containers()
 bot = discord.Bot()
 
 class UCog(commands.Cog):
@@ -159,9 +148,6 @@ async def start(ctx, server: discord.Option(str, choices=CONTAINERS)): # type: i
     except ConnectionError:
         response = "could not wake main server. Please try again later"
 
-    global CONTAINERS
-    CONTAINERS = reload_containers()
-    logging.info(f"loaded containers: {CONTAINERS}")
     # await update_status()
     await ctx.followup.send(response, ephemeral=True)
 
@@ -176,9 +162,6 @@ async def stop(ctx, server: discord.Option(str, choices=CONTAINERS)): # type: ig
     except ConnectionError:
         response = "could not wake main server. Please try again later"
 
-    global CONTAINERS
-    CONTAINERS = reload_containers()
-    logging.info(f"loaded containers: {CONTAINERS}")
     # await update_status()
     await ctx.followup.send(response, ephemeral=True)
 @bot.event
