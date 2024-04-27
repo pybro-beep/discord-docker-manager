@@ -11,6 +11,10 @@ from wakeonlan import send_magic_packet
 from dotenv import load_dotenv
 
 #TODO: use RotatingFileHandler
+#TODO: add maintenance mode (leaves main server started but does not allow interactions / updates during it) -> containers can be worked on without trouble while bot is running
+#TODO: prettify loading of containers
+#TODO: add a way to reload config via outside signal (helpful for systemd)
+#TODO: add systemd deployment
 #Setup----------------------------
 logging.basicConfig(filename="log/bot.log",
                     encoding="utf-8",
