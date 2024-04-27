@@ -94,17 +94,16 @@ def suspend_server():
         logging.error(f"failed to suspend server after {TIMEOUT} tries")
     SSH.close()
 
+def in_whitelist(name: str) -> bool:
+    if ("*" in WHITELIST): #possibly remove this check, because this turns whitelist into blacklist. blacklist is easier to accidentally expose containers with.
+        return True
+    return (name in WHITELIST)
 def reload_containers() -> list: #WARN: can raise ConnectionError
     ret = []
     client = get_client()
     containers = client.containers.list("all")
-    load_all = "*" in WHITELIST
     for i in containers:
-        if load_all:
-            ret.append(i.name)
-            continue
-
-        if i.name in WHITELIST:
+        if in_whitelist(i.name):
             ret.append(i.name)
         else:
             logging.info(f"{i.name} is not in {WHITELIST_PATH}. ignoring")
@@ -129,7 +128,7 @@ class UCog(commands.Cog):
                 client = get_client()
                 containertlist = client.containers.list()
                 for i in containertlist:
-                    if i.status == "running":
+                    if i.status == "running" and in_whitelist(i.name):
                         presence.append(i.name)
             except ConnectionError:
                 pass
@@ -147,8 +146,16 @@ async def start(ctx, server: discord.Option(str, choices=CONTAINERS)): # type: i
     await ctx.response.defer(ephemeral=True)
     try:
         client = get_client()
-        client.containers.get(server).start()
-        response = "starting server."
+        # enforce container limit to avoid maxing out memory
+        running_containers = 0
+        for i in client.containers.list():
+            if i.status == "running" and in_whitelist(i.name):
+                running_containers += 1
+        if running_containers > 1:
+            response = f"{running_containers} gameserver(s) are running. To avoid performance problems, no more servers will be started."
+        else:
+            client.containers.get(server).start()
+            response = "starting server."
     except ConnectionError:
         response = "could not wake main server. Please try again later"
 
