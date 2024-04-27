@@ -99,8 +99,17 @@ def in_whitelist(name: str) -> bool:
         return True
     return (name in WHITELIST)
 
+def container_init():
+    client = get_client()
+    containertlist = client.containers.list()
+    temp_containers = []
+    for i in containertlist:
+        if in_whitelist(i.name):
+            temp_containers.append(i.name)
+    global CONTAINERS
+    CONTAINERS = temp_containers
 
-        
+container_init() #TODO: beautifiy by changing container fetching and using -> standardise and beautify as the founding fathers intended
 bot = discord.Bot()
 
 class UCog(commands.Cog):
@@ -116,9 +125,14 @@ class UCog(commands.Cog):
             try:
                 client = get_client()
                 containertlist = client.containers.list()
+                temp_containers = []
                 for i in containertlist:
-                    if i.status == "running" and in_whitelist(i.name):
-                        presence.append(i.name)
+                    if in_whitelist(i.name):
+                        temp_containers.append(i.name)
+                        if i.status == "running":
+                            presence.append(i.name)
+                global CONTAINERS
+                CONTAINERS = temp_containers
             except ConnectionError:
                 pass
             if len(presence) == 0:
@@ -165,6 +179,8 @@ async def stop(ctx, server: discord.Option(str, choices=CONTAINERS)): # type: ig
 @bot.event
 async def on_ready():
     bot.add_cog(UCog(bot))
+
+
 
 #MAIN----------------------
 def main():
