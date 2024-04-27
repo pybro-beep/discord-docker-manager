@@ -25,6 +25,7 @@ SSH = paramiko.SSHClient()
 SSH.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 WHITELIST = []
 TIMEOUT: int = 6 #Type annotations have to be made in the scope that owns the variable. -> load_config may not add type to TIMEOUT
+CONTAINERS: list[str] = []
 
 #override default ---------------
 
@@ -101,7 +102,7 @@ def in_whitelist(name: str) -> bool:
 
 def container_init():
     client = get_client()
-    containertlist = client.containers.list()
+    containertlist = client.containers.list("all")
     temp_containers = []
     for i in containertlist:
         if in_whitelist(i.name):
@@ -124,7 +125,7 @@ class UCog(commands.Cog):
             presence = []
             try:
                 client = get_client()
-                containertlist = client.containers.list()
+                containertlist = client.containers.list("all")
                 temp_containers = []
                 for i in containertlist:
                     if in_whitelist(i.name):
@@ -133,6 +134,7 @@ class UCog(commands.Cog):
                             presence.append(i.name)
                 global CONTAINERS
                 CONTAINERS = temp_containers
+                logging.info(f"loaded {CONTAINERS} as list of available Servers")
             except ConnectionError:
                 pass
             if len(presence) == 0:
@@ -151,7 +153,7 @@ async def start(ctx, server: discord.Option(str, choices=CONTAINERS)): # type: i
         client = get_client()
         # enforce container limit to avoid maxing out memory
         running_containers = 0
-        for i in client.containers.list():
+        for i in client.containers.list("all"):
             if i.status == "running" and in_whitelist(i.name):
                 running_containers += 1
         if running_containers > 1:
