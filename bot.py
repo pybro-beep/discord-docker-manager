@@ -10,9 +10,11 @@ from threading import Thread
 from wakeonlan import send_magic_packet
 from dotenv import load_dotenv
 
+#TODO: add docker healthchecks!
 #TODO: use RotatingFileHandler
 #TODO: add maintenance mode (leaves main server started but does not allow interactions / updates during it) -> containers can be worked on without trouble while bot is running
 #TODO: prettify loading of containers
+#TODO: add autoupdate (preferably FALSE default with env flag)
 #TODO: add a way to reload config via outside signal (helpful for systemd)
 #TODO: add systemd deployment
 #Setup----------------------------
@@ -88,10 +90,10 @@ def suspend_server():
             SSH.connect(hostname=HOSTNAME, username=USERNAME, key_filename=KEY_PATH) #bot currently only supports keyauth. keyauth with password on id_rsa file not supported either.
             _stdin, _stdout, _stderr = SSH.exec_command("systemctl suspend")
             i = TIMEOUT
-            logging.info("systemctl suspend was executed")
+            logging.debug("systemctl suspend was executed")
         except paramiko.ssh_exception.SSHException as e:
-            logging.info("Failed to suspend server on attempt " + str(i) + " of " + str(TIMEOUT - 1))
-            logging.info(e)
+            logging.warning("Failed to suspend server on attempt " + str(i) + " of " + str(TIMEOUT - 1))
+            logging.warning(e)
             SSH.close()
             i = i + 1
             time.sleep(2)
@@ -129,7 +131,7 @@ class UCog(commands.Cog):
             presence = []
             try:
                 client = get_client()
-                containertlist = client.containers.list("all")
+                containertlist = client.containers.list(all=True)
                 temp_containers = []
                 for i in containertlist:
                     if in_whitelist(i.name):
@@ -141,7 +143,7 @@ class UCog(commands.Cog):
                 logging.info(f"loaded {CONTAINERS} as list of available Servers")
             except ConnectionError:
                 pass
-            if len(presence) == 0:
+            if len(presence) == 0: #currently ignores non-whitelisted containers and hibernates -> could be bad, don't do that!
                 suspend_server()
                 await self.bot.change_presence(activity=None)
                 return
@@ -157,7 +159,7 @@ async def start(ctx, server: discord.Option(str, choices=CONTAINERS)): # type: i
         client = get_client()
         # enforce container limit to avoid maxing out memory
         running_containers = 0
-        for i in client.containers.list("all"):
+        for i in client.containers.list(all=True):
             if i.status == "running" and in_whitelist(i.name):
                 running_containers += 1
         if running_containers > 1:
@@ -180,7 +182,6 @@ async def stop(ctx, server: discord.Option(str, choices=CONTAINERS)): # type: ig
         response = "stopping server."
     except ConnectionError:
         response = "could not wake main server. Please try again later"
-
     await ctx.followup.send(response, ephemeral=True)
 @bot.event
 async def on_ready():

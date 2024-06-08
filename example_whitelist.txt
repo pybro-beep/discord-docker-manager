@@ -1,3 +1,4 @@
 palworld-server
-minecraft-server
-satisfactory-server
+minecraft
+satisfactory
+vrising
